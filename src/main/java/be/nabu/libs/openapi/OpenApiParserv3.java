@@ -192,6 +192,11 @@ public class OpenApiParserv3 {
 	 */
 	@SuppressWarnings("rawtypes")
 	private Type parseType(ModifiableTypeRegistry registry, String baseId, String name, ComplexContent content, String referencePath, boolean defineOnly) throws ParseException {
+		
+		if (content.get("$ref") != null) {
+			return (Type) references.get((String) content.get("$ref"));
+		}
+		
 		Object typeString = content.get("type");
 		/**
 		 * The sendgrid swagger contained 47 instances of:
@@ -567,7 +572,7 @@ public class OpenApiParserv3 {
 				if (response.getElement() == null && contentTypeContent != null) {
 					ComplexContent schema = (ComplexContent) contentTypeContent.get("schema");
 					if (schema != null) {
-						response.setElement(parseSchemaPart(definition, name, schema));
+						response.setElement(parseSchemaPart(definition, "body", schema));
 					}
 				}
 				produces.add(contentType.getName());
@@ -603,12 +608,15 @@ public class OpenApiParserv3 {
 		request.setRequired(required);
 		ComplexContent definitionContent = (ComplexContent) content.get("content");
 		if (definitionContent != null) {
+			System.out.println("found content for request");
 			// TODO: currently we assume (as one normally would...?) that all the content types return the same data, so we only parse the first one and just keep track of the other content types that are allowed
 			List<String> consumes = new ArrayList<String>();
 			for (Element<?> contentType : TypeUtils.getAllChildren(definitionContent.getType())) {
+				System.out.println("found content type: " + contentType.getName());
 				ComplexContent contentTypeContent = (ComplexContent) definitionContent.get(contentType.getName());
 				if (request.getElement() == null && contentTypeContent != null) {
 					ComplexContent schema = (ComplexContent) contentTypeContent.get("schema");
+					System.out.println("found schema: " + schema);
 					if (schema != null) {
 						request.setElement(parseSchemaPart(definition, name, schema));
 					}
