@@ -95,6 +95,12 @@ public class OpenApiParserv3 {
 			SwaggerDefinition parsed = openApiParserv3.parse("test", openStream);
 			System.out.println(openApiParserv3.references);
 			System.out.println("operations: " + parsed.getPaths());
+			
+			for (String namespace : parsed.getRegistry().getNamespaces()) {
+				for (ComplexType type : parsed.getRegistry().getComplexTypes(namespace)) {
+					System.out.println("type: " + type);
+				}
+			}
 		}
 		finally {
 			openStream.close();
@@ -225,6 +231,7 @@ public class OpenApiParserv3 {
 				if (referencePath != null) {
 					type = new DefinedStructure();
 					((DefinedStructure) type).setId(typeId);
+					((DefinedStructure) type).setNamespace(baseId);
 				}
 				else {
 					type = new Structure();
