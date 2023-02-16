@@ -88,7 +88,9 @@ public class OpenApiParserv3 {
 	private UUIDFormat uuidFormat;
 	
 	public static void main(String...args) throws IOException, ParseException {
-		URL url = new URL("https://api.hubspot.com/api-catalog-public/v1/apis/crm/v3/objects");
+//		URL url = new URL("https://api.hubspot.com/api-catalog-public/v1/apis/crm/v3/objects");
+//		URL url = new URL("file:/home/alex/Downloads/naamgeving.json");
+		URL url = new URL("file:/home/alex/Downloads/vestigingsprofiel.json");
 		InputStream openStream = url.openStream();
 		try {
 			OpenApiParserv3 openApiParserv3 = new OpenApiParserv3();
@@ -562,6 +564,20 @@ public class OpenApiParserv3 {
 		if (name.matches("^[0-9]+$")) {
 			response.setCode(Integer.parseInt(name));
 		}
+		// we might be using a predefined response
+		String ref = (String) content.get("$ref");
+		if (ref != null) {
+			// we need to copy the relevant parameters because the actual response code is only defined here (most likely)
+			SwaggerResponse refResponse = (SwaggerResponse) references.get(ref);
+			if (refResponse == null) {
+				throw new ParseException("Could not find referenced response: " + ref, 0);
+			}
+			response.setDescription(refResponse.getDescription());
+			response.setElement(refResponse.getElement());
+			response.setHeaders(refResponse.getHeaders());
+			response.setProduces(refResponse.getProduces());
+			return response;
+		}
 		response.setDescription((String) content.get("description"));
 		ComplexContent definitionContent = (ComplexContent) content.get("content");
 		if (definitionContent != null) {
@@ -608,15 +624,12 @@ public class OpenApiParserv3 {
 		request.setRequired(required);
 		ComplexContent definitionContent = (ComplexContent) content.get("content");
 		if (definitionContent != null) {
-			System.out.println("found content for request");
 			// TODO: currently we assume (as one normally would...?) that all the content types return the same data, so we only parse the first one and just keep track of the other content types that are allowed
 			List<String> consumes = new ArrayList<String>();
 			for (Element<?> contentType : TypeUtils.getAllChildren(definitionContent.getType())) {
-				System.out.println("found content type: " + contentType.getName());
 				ComplexContent contentTypeContent = (ComplexContent) definitionContent.get(contentType.getName());
 				if (request.getElement() == null && contentTypeContent != null) {
 					ComplexContent schema = (ComplexContent) contentTypeContent.get("schema");
-					System.out.println("found schema: " + schema);
 					if (schema != null) {
 						request.setElement(parseSchemaPart(definition, name, schema));
 					}
@@ -655,9 +668,28 @@ public class OpenApiParserv3 {
 	// the actual name of the parameter is a value in the definition
 	private SwaggerParameterImpl parseComponentParameter(SwaggerDefinitionImpl definition, String name, ComplexContent content, String referencePath) throws ParseException {
 		SwaggerParameterImpl parameter = new SwaggerParameterImpl();
+		String ref = (String) content.get("$ref");
+		if (ref != null) {
+			SwaggerParameterImpl refParameter = (SwaggerParameterImpl) references.get(ref);
+			if (refParameter == null) {
+				throw new ParseException("Could not find referenced parameter:" + ref, 0);
+			}
+			return refParameter;
+//			parameter.setElement(cloneWithName(refParameter.getElement(), name));
+//			parameter.setDescription(refParameter.getDescription());
+//			parameter.setName(parameter.getName());
+//			parameter.setLocation(parameter.getLocation());
+//			return parameter;
+		}
+		
 		parameter.setDescription((String) content.get("description"));
 		parameter.setName((String) content.get("name"));
-		parameter.setLocation(ParameterLocation.valueOf(((String) content.get("in")).toUpperCase()));
+		if (content.get("in") != null) {
+			parameter.setLocation(ParameterLocation.valueOf(((String) content.get("in")).toUpperCase()));
+		}
+		else {
+			logger.warn("Could not find the location of the parameter: " + parameter.getName());
+		}
 		if (name == null) {
 			name = parameter.getName();
 		}
@@ -723,6 +755,16 @@ public class OpenApiParserv3 {
 	}
 	private SwaggerParameterImpl parseComponentHeader(SwaggerDefinitionImpl definition, String name, ComplexContent content, String referencePath) throws ParseException {
 		SwaggerParameterImpl parameter = new SwaggerParameterImpl();
+		String ref = (String) content.get("$ref");
+		if (ref != null) {
+			SwaggerParameterImpl refHeader = (SwaggerParameterImpl) references.get(ref);
+			if (refHeader == null) {
+				throw new ParseException("Could not find referenced header:" + ref, 0);
+			}
+			parameter.setElement(cloneWithName(refHeader.getElement(), name));
+			parameter.setDescription(refHeader.getDescription());
+			return parameter;
+		}
 		parameter.setDescription((String) content.get("description"));
 		ComplexContent schema = (ComplexContent) content.get("schema");
 		if (schema != null) {
@@ -732,6 +774,16 @@ public class OpenApiParserv3 {
 			references.put(referencePath + "/" + name, parameter);
 		}
 		return parameter;
+	}
+	@SuppressWarnings("rawtypes")
+	private Element<?> cloneWithName(Element<?> element, String name) {
+		name = SwaggerParser.cleanup(name);
+		if (element.getType() instanceof ComplexType) {
+			return new ComplexElementImpl(name, (ComplexType) element.getType(), element.getParent(), element.getProperties());
+		}
+		else {
+			return new SimpleElementImpl(name, (SimpleType<?>) element.getType(), element.getParent(), element.getProperties());
+		}
 	}
 	
 	private void parseComponentSecuritySchemes(SwaggerDefinitionImpl definition, ComplexContent content) {
