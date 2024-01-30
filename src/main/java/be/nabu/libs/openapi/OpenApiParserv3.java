@@ -9,6 +9,7 @@ import java.net.URL;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -91,6 +92,7 @@ public class OpenApiParserv3 {
 //		URL url = new URL("https://api.hubspot.com/api-catalog-public/v1/apis/crm/v3/objects");
 //		URL url = new URL("file:/home/alex/Downloads/naamgeving.json");
 		URL url = new URL("file:/home/alex/Downloads/vestigingsprofiel.json");
+		url = new URL("file:/home/alex/files/repository-nabu/testApplication/process/zoekenV2/swagger.json");
 		InputStream openStream = url.openStream();
 		try {
 			OpenApiParserv3 openApiParserv3 = new OpenApiParserv3();
@@ -181,10 +183,34 @@ public class OpenApiParserv3 {
 			}
 		}
 	}
+	
 	private void parseComponentSchemas(SwaggerDefinitionImpl definition, ComplexContent content, boolean defineOnly) throws ParseException {
+		List<String> all = new ArrayList<String>();
 		for (Element<?> child : TypeUtils.getAllChildren(content.getType())) {
-			parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId() + ".types", child.getName(), (ComplexContent) content.get(child.getName()), "#/components/schemas", defineOnly);
-		}		
+			all.add(child.getName());
+		}
+		
+		List<String> previousFailed = null;
+		List<String> failed = null;
+		while (previousFailed == null || failed.size() < previousFailed.size()) {
+			List<String> toParse = failed == null ? all : failed;
+			previousFailed = failed;
+			failed = new ArrayList<String>();
+			for (String single : toParse) {
+				try {
+					parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId() + ".types", single, (ComplexContent) content.get(single), "#/components/schemas", defineOnly);
+				}
+				catch (ParseException e) {
+					// we should repeat
+					if (e.getErrorOffset() == 1) {
+						failed.add(single);
+					}
+					else {
+						throw e;
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -252,8 +278,14 @@ public class OpenApiParserv3 {
 			// in the define only phase, we want to allow references to be created without actually having parsed it yet (definitions can be out-of-order from a parsing perspective)
 			if (!defineOnly) {
 				Structure structure = (Structure) type;
-				if (content.get("allOf") != null) {
+				if (content.get("allOf") != null || content.get("oneOf") != null || content.get("anyOf") != null) {
 					List<Object> allOf = (List<Object>) content.get("allOf");
+					if (allOf == null) {
+						allOf = (List<Object>) content.get("oneOf");
+					}
+					if (allOf == null) {
+						allOf = (List<Object>) content.get("anyOf");
+					}
 					// first find the root we are extending (if any)
 					for (Object single : allOf) {
 						Map<String, Object> singleMap = ((MapContent) single).getContent();
@@ -263,14 +295,28 @@ public class OpenApiParserv3 {
 								throw new ParseException("Can not find super type: " + singleMap.get("$ref"), 1);
 							}
 							// the first ref will be mapped as a supertype
-							if (structure.getSuperType() == null) {
+							// in some cases because of lazy type resolving of non-supertypes we might actually end up parsing this multiple times (e.g. extends A and absorbs B but B is not yet available)
+							// we want to make sure A is not first set as supertype, then we cycle around again to do A again because B failed, but we assume because there _is_ a supertype (A) that we absorb A as well, leading to duplicate element definitions
+							if (structure.getSuperType() == null || structure.getSuperType().equals(superType)) {
 								structure.setSuperType(superType);
 							}
 							// other refs are expanded in it
 							else {
 								if (superType instanceof ComplexType) {
+									// we want to add at least _something_, otherwise we assume the other type was not yet parsed correctly!
+									boolean added = false;
 									for (Element<?> child : TypeUtils.getAllChildren((ComplexType) superType)) {
-										structure.add(TypeBaseUtils.clone(child, structure));
+										// musn't exist yet, otherwise we get weird conflicts
+										if (structure.get(child.getName()) == null) {
+											structure.add(TypeBaseUtils.clone(child, structure));
+										}
+										else {
+											throw new ParseException("Duplicate fields in allOf/oneOf/anyOf", 2);		
+										}
+										added = true;
+									}
+									if (!added) {
+										throw new ParseException("Could not find any child elements in: " + single, 1);
 									}
 								}
 								else {
