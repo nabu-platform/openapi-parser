@@ -310,9 +310,11 @@ public class OpenApiParserv3 {
 										if (structure.get(child.getName()) == null) {
 											structure.add(TypeBaseUtils.clone(child, structure));
 										}
-										else {
-											throw new ParseException("Duplicate fields in allOf/oneOf/anyOf", 2);		
-										}
+										// we allow it, it is possible you are allowing similar objects
+										// in the future we can do type rewriting if necessary
+//										else {
+//											throw new ParseException("Duplicate fields in allOf/oneOf/anyOf", 2);		
+//										}
 										added = true;
 									}
 									if (!added) {
