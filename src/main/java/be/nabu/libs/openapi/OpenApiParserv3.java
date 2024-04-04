@@ -570,6 +570,13 @@ public class OpenApiParserv3 {
 		if (properties != null) {
 			for (Element<?> child : TypeUtils.getAllChildren(properties.getType())) {
 				ComplexContent childContent = (ComplexContent) properties.get(child.getName());
+				// @2024-03-08
+				// in case of an anyOf, allOf,... there are multiple items in an array that do _not_ share the same structure
+				// the resulting complex type is a merger of all these properties which means, given any single complex content there is a high likelihood of fields having no content
+				// TODO: might need to be applied to other locations
+				if (childContent == null) {
+					continue;
+				}
 				String reference = (String) childContent.get("$ref");
 				Type childType;
 				if (reference != null) {
