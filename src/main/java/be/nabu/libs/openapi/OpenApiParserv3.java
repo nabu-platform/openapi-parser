@@ -433,7 +433,10 @@ public class OpenApiParserv3 {
 			// but apart from that you can use any format you choose
 			String format = (String) content.get("format");
 			if (typeString.equals("number")) {
-				if (format == null || format.equals("double")) {
+				if (format == null) {
+					simpleType = SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(BigDecimal.class);
+				}
+				else if (format.equals("double")) {
 					simpleType = SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Double.class);
 				}
 				else if (format.equals("float")) {
@@ -445,7 +448,10 @@ public class OpenApiParserv3 {
 				}
 			}
 			else if (typeString.equals("integer")) {
-				if (format == null || format.equals("int32")) {
+				if (format == null) {
+					simpleType = SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(BigInteger.class);
+				}
+				else if (format.equals("int32")) {
 					simpleType = SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(Integer.class);
 				}
 				else if (format.equals("int64")) {
