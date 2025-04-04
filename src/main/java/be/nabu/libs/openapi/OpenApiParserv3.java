@@ -900,7 +900,7 @@ public class OpenApiParserv3 {
 					if (!allowedMethods.contains(methodChild.getName().toLowerCase())) {
 						continue;
 					}
-					methods.add(parseMethod(definition, (ComplexContent) pathContent.get(methodChild.getName()), url, methodChild.getName()));
+					methods.add(parseMethod(definition, (ComplexContent) pathContent.get(methodChild.getName()), url, methodChild.getName(), parameters));
 				}
 			}
 			path.setPath(url);
@@ -911,7 +911,7 @@ public class OpenApiParserv3 {
 		return paths;
 	}
 	
-	private SwaggerMethod parseMethod(SwaggerDefinitionImpl definition, ComplexContent content, String path, String methodName) throws ParseException {
+	private SwaggerMethod parseMethod(SwaggerDefinitionImpl definition, ComplexContent content, String path, String methodName, Map<String, SwaggerParameter> pathParameters) throws ParseException {
 		SwaggerMethodImpl method = new SwaggerMethodImpl();
 		method.setTags((List<String>) content.get("tags"));
 		method.setSummary((String) content.get("summary"));
@@ -919,6 +919,7 @@ public class OpenApiParserv3 {
 		method.setOperationId(SwaggerParser.cleanupOperationId(path, methodName, method.getOperationId()));
 		method.setMethod(methodName);
 		
+		List<String> definedParameters = new ArrayList<String>();
 		// parameters
 		List<SwaggerParameter> parameters = new ArrayList<SwaggerParameter>();
 		Object parameterContent = content.get("parameters");
@@ -927,9 +928,18 @@ public class OpenApiParserv3 {
 				SwaggerParameterImpl parameter = parseComponentParameter(definition, null, (ComplexContent) singleParameterContent, null);
 				if (parameter != null && parameter.getName() != null) {
 					parameters.add(parameter);
+					definedParameters.add(parameter.getName());
 				}
 			}
 		}
+		if (pathParameters != null && !pathParameters.isEmpty()) {
+			for (String key : pathParameters.keySet()) {
+				if (!definedParameters.contains(key)) {
+					parameters.add(pathParameters.get(key));
+				}
+			}
+		}
+		
 		method.setParameters(parameters);
 		
 		// request body
