@@ -78,6 +78,7 @@ import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.types.java.BeanResolver;
 import be.nabu.libs.types.java.BeanType;
 import be.nabu.libs.types.map.MapContent;
+import be.nabu.libs.types.properties.CollectionFormatProperty;
 import be.nabu.libs.types.properties.CommentProperty;
 import be.nabu.libs.types.properties.EnumerationProperty;
 import be.nabu.libs.types.properties.FormatProperty;
@@ -710,6 +711,63 @@ public class OpenApiParserv3 {
 					ComplexContent schema = (ComplexContent) contentTypeContent.get("schema");
 					if (schema != null) {
 						request.setElement(parseSchemaPart(definition, name, schema));
+						/*
+						 "application/x-www-form-urlencoded": {
+				             "encoding": {
+				                "acss_debit": {
+				                  "explode": true,
+				                  "style": "deepObject"
+				                },
+				              ...
+				              "schema": {
+				                "additionalProperties": false,
+				                "properties": {
+				                  "acss_debit": {
+				                    "description": "If this is an `acss_debit` PaymentMethod, this hash contains details about the ACSS Debit payment method.",
+				                    "properties": {
+				                      "account_number": {
+				                        "maxLength": 5000,
+				                        "type": "string"
+				                      },
+				                      "institution_number": {
+				                        "maxLength": 5000,
+				                        "type": "string"
+				                      },
+				                      "transit_number": {
+				                        "maxLength": 5000,
+				                        "type": "string"
+				                      }
+				                    },
+				                    "required": [
+				                      "account_number",
+				                      "institution_number",
+				                      "transit_number"
+				                    ],
+				                    "title": "payment_method_param",
+				                    "type": "object"
+				                  },
+						 */
+						ComplexContent encoding = (ComplexContent) contentTypeContent.get("encoding");
+						// we want to apply the encoding to the element
+						// the parseSchemaPart has generated new element instances around the (potentially shared) data type so can safely carry these method-specific encoding options
+						// note that the encoding ONLY applies to old school form binding so it has limited real world usage
+						// we can't annotate deeper children because they may be shared through $ref so we tentatively set it at the root level hoping that no one actually sets multiple different encodings for a single call
+						if (encoding != null) {
+							Element<?> requestElement = request.getElement();
+							if (requestElement.getType() instanceof ComplexType) {
+								for (Element<?> encodingChild : TypeUtils.getAllChildren(encoding.getType())) {
+									ComplexContent encodingChildContent = (ComplexContent) encoding.get(encodingChild.getName());
+									String encodingStyle = (String) encodingChildContent.get("style");
+									Object explodeContent = encodingChildContent.get("explode");
+									// When this is true, parameter values of type array or object generate separate parameters for each value of the array or key-value pair of the map. For other types of parameters this property has no effect. When style is form, the default value is true. For all other styles, the default value is false.
+									boolean encodingExplode = explodeContent != null && 
+										((explodeContent instanceof Boolean && (Boolean) explodeContent)
+												|| (explodeContent instanceof String && explodeContent.equals("true")));
+									requestElement.setProperty(new ValueImpl<CollectionFormat>(CollectionFormatProperty.getInstance(), mapToCollectionFormat(encodingStyle, encodingExplode)));
+									break;
+								}
+							}
+						}
 					}
 				}
 				consumes.add(contentType.getName());
@@ -792,36 +850,44 @@ public class OpenApiParserv3 {
 		parameter.setExplode(explode);
 		parameter.setAllowReserved(allowReserved);
 		// for arrays, the style maps mostly to the collection format options we had before
-		if (style != null) {
-			// Simple style parameters defined by RFC6570. This option replaces collectionFormat with a csv value from OpenAPI 2.0.
-			if (style.equalsIgnoreCase("simple")) {
-				parameter.setCollectionFormat(CollectionFormat.CSV);
-			}
-			// Space separated array values. This option replaces collectionFormat equal to ssv from OpenAPI 2.0.
-			else if (style.equalsIgnoreCase("spaceDelimited")) {
-				parameter.setCollectionFormat(CollectionFormat.SSV);
-			}
-			else if (style.equalsIgnoreCase("pipeDelimited")) {
-				parameter.setCollectionFormat(CollectionFormat.PIPES);
-			}
-			// Form style parameters defined by RFC6570. This option replaces collectionFormat with a csv (when explode is false) or multi (when explode is true) value from OpenAPI 2.0.
-			else if (style.equalsIgnoreCase("form")) {
-				parameter.setCollectionFormat(explode ? CollectionFormat.CSV : CollectionFormat.MULTI);
-			}
-			else if (style.equalsIgnoreCase("label")) {
-				parameter.setCollectionFormat(CollectionFormat.LABEL);
-			}
-			else if (style.equalsIgnoreCase("matrix")) {
-				parameter.setCollectionFormat(explode ? CollectionFormat.MATRIX_IMPLODE : CollectionFormat.MATRIX_EXPLODE);
-			}
-			else if (style.equalsIgnoreCase("deepObject")) {
-				throw new UnsupportedOperationException("Style deepObject is not yet supported");
-			}
-		}
+		parameter.setCollectionFormat(mapToCollectionFormat(style, explode));
 		if (parameter != null && referencePath != null) {
 			references.put(referencePath + "/" + name, parameter);
 		}
 		return parameter;
+	}
+
+	private CollectionFormat mapToCollectionFormat(String style, boolean explode) {
+		if (style != null) {
+			// Simple style parameters defined by RFC6570. This option replaces collectionFormat with a csv value from OpenAPI 2.0.
+			if (style.equalsIgnoreCase("simple")) {
+				return CollectionFormat.CSV;
+			}
+			// Space separated array values. This option replaces collectionFormat equal to ssv from OpenAPI 2.0.
+			else if (style.equalsIgnoreCase("spaceDelimited")) {
+				return CollectionFormat.SSV;
+			}
+			else if (style.equalsIgnoreCase("pipeDelimited")) {
+				return CollectionFormat.PIPES;
+			}
+			// Form style parameters defined by RFC6570. This option replaces collectionFormat with a csv (when explode is false) or multi (when explode is true) value from OpenAPI 2.0.
+			else if (style.equalsIgnoreCase("form")) {
+				return explode ? CollectionFormat.CSV : CollectionFormat.MULTI;
+			}
+			else if (style.equalsIgnoreCase("label")) {
+				return CollectionFormat.LABEL;
+			}
+			else if (style.equalsIgnoreCase("matrix")) {
+				return explode ? CollectionFormat.MATRIX_IMPLODE : CollectionFormat.MATRIX_EXPLODE;
+			}
+			else if (style.equalsIgnoreCase("deepObject")) {
+				if (!explode) {
+					throw new UnsupportedOperationException("Non-exploded style deepObject is not supported, it does not appear to be valid according to the specification");	
+				}
+				return CollectionFormat.DEEP_OBJECT;
+			}
+		}
+		return null;
 	}
 	
 	private List<SwaggerParameter> parseComponentHeaders(SwaggerDefinitionImpl definition, ComplexContent content, String referencePath) throws ParseException {
