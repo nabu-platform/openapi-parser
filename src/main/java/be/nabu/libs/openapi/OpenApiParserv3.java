@@ -99,6 +99,7 @@ import be.nabu.libs.types.structure.Structure;
 @SuppressWarnings("unchecked")
 public class OpenApiParserv3 {
 
+	private static final String Type = null;
 	private TimeZone timezone;
 	// for some reason some people generate as swagger where the format is set to "uuid" but it is actually not a valid uuid...
 	// for instance sendgrid for some reason uses a valid uuid but prepends it with "d-" making it invalid...
@@ -110,7 +111,7 @@ public class OpenApiParserv3 {
 //		URL url = new URL("https://api.hubspot.com/api-catalog-public/v1/apis/crm/v3/objects");
 //		URL url = new URL("file:/home/alex/Downloads/naamgeving.json");
 		URL url = new URL("file:/home/alex/Downloads/vestigingsprofiel.json");
-		url = new URL("file:/home/alex/files/repository-nabu/testApplication/process/zoekenV2/swagger.json");
+		url = new URL("file:/home/alex/Downloads/openapi.json");
 		InputStream openStream = url.openStream();
 		try {
 			OpenApiParserv3 openApiParserv3 = new OpenApiParserv3();
@@ -229,6 +230,9 @@ public class OpenApiParserv3 {
 				}
 			}
 		}
+		if (failed != null && !failed.isEmpty()) {
+			logger.warn("Could not parse everything: " + failed);
+		}
 	}
 
 	/**
@@ -240,7 +244,17 @@ public class OpenApiParserv3 {
 	private Type parseType(ModifiableTypeRegistry registry, String baseId, String name, ComplexContent content, String referencePath, boolean defineOnly) throws ParseException {
 		
 		if (content.get("$ref") != null) {
-			return (Type) references.get((String) content.get("$ref"));
+			if (references.get((String) content.get("$ref")) == null) {
+				throw new ParseException("Can not resolve $ref " + content.get("$ref"), 1);
+			}
+			// it can be sort of an "alias" where it does not add anything to the type, just has another name for it
+			// it must be registered though for resolving
+			Type resolvedType = (Type) references.get((String) content.get("$ref"));
+			if (referencePath != null) {
+				references.put(referencePath + "/" + name, resolvedType);
+			}
+			// not sure why we do this early return instead of assigning to type, has led to some code duplication :(
+			return resolvedType;
 		}
 		
 		Object typeString = content.get("type");
