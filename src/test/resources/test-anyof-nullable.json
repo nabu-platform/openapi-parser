@@ -1,0 +1,47 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "Nullable anyOf test",
+		"version": "1.0.0"
+	},
+	"paths": {},
+	"components": {
+		"schemas": {
+			"BaseObject": {
+				"type": "object",
+				"properties": {
+					"value": {
+						"type": "string"
+					}
+				},
+				"required": ["value"]
+			},
+			"NullableObject": {
+				"anyOf": [
+					{
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": ["name"]
+					},
+					{
+						"type": "null"
+					}
+				]
+			},
+			"NullableReference": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/BaseObject"
+					},
+					{
+						"type": "null"
+					}
+				]
+			}
+		}
+	}
+}

@@ -217,7 +217,7 @@ public class OpenApiParserv3 {
 			failed = new ArrayList<String>();
 			for (String single : toParse) {
 				try {
-					parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId() + ".types", single, (ComplexContent) content.get(single), "#/components/schemas", defineOnly);
+					parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId() + ".types", single, (ComplexContent) content.get(single), "#/components/schemas", defineOnly, true);
 				}
 				catch (ParseException e) {
 					// we should repeat
@@ -241,7 +241,7 @@ public class OpenApiParserv3 {
  	 * this allows for out-of-order definition
 	 */
 	@SuppressWarnings("rawtypes")
-	private Type parseType(ModifiableTypeRegistry registry, String baseId, String name, ComplexContent content, String referencePath, boolean defineOnly) throws ParseException {
+	private Type parseType(ModifiableTypeRegistry registry, String baseId, String name, ComplexContent content, String referencePath, boolean defineOnly, boolean allowTypeLevelRequired) throws ParseException {
 		
 		if (content.get("$ref") != null) {
 			if (references.get((String) content.get("$ref")) == null) {
@@ -255,6 +255,34 @@ public class OpenApiParserv3 {
 			}
 			// not sure why we do this early return instead of assigning to type, has led to some code duplication :(
 			return resolvedType;
+		}
+		
+		List<Object> anyOf = (List<Object>) content.get("anyOf");
+		if (anyOf != null && anyOf.size() == 2) {
+			ComplexContent nullableCandidate = null;
+			ComplexContent actualCandidate = null;
+			for (Object single : anyOf) {
+				Map<String, Object> singleMap = ((MapContent) single).getContent();
+				if ("null".equals(singleMap.get("type"))) {
+					nullableCandidate = (ComplexContent) single;
+				}
+				else {
+					actualCandidate = (ComplexContent) single;
+				}
+			}
+			if (nullableCandidate != null && actualCandidate != null) {
+				content = actualCandidate;
+				if (content.get("$ref") != null) {
+					if (references.get((String) content.get("$ref")) == null) {
+						throw new ParseException("Can not resolve $ref " + content.get("$ref"), 1);
+					}
+					Type resolvedType = (Type) references.get((String) content.get("$ref"));
+					if (referencePath != null) {
+						references.put(referencePath + "/" + name, resolvedType);
+					}
+					return resolvedType;
+				}
+			}
 		}
 		
 		Object typeString = content.get("type");
@@ -396,7 +424,7 @@ public class OpenApiParserv3 {
 			}
 			else {
 				parsedDefinedType = items.get("$ref") == null 
-					? parseType(registry, null, name, items, null, false)
+					? parseType(registry, null, name, items, null, false, true)
 					: findType((String) items.get("$ref"));
 			}
 			
@@ -530,11 +558,13 @@ public class OpenApiParserv3 {
 				}
 			}
 			
-			Boolean required = (Boolean) content.get("required");
-			// the default value for required (false) is the opposite of the minoccurs
-			// if it is not specified, do we want it to be inserted?
-			if (required == null || (required != null && !required)) {
-				values.add(new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0));
+			if (allowTypeLevelRequired) {
+				Boolean required = (Boolean) content.get("required");
+				// the default value for required (false) is the opposite of the minoccurs
+				// if it is not specified, do we want it to be inserted?
+				if (required == null || (required != null && !required)) {
+					values.add(new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0));
+				}
 			}
 			type = new MarshallableSimpleTypeExtension(typeId, baseId, name, simpleType);
 		}
@@ -621,7 +651,7 @@ public class OpenApiParserv3 {
 					childType = findType(reference);
 				}
 				else {
-					childType = parseType(registry, null, child.getName(), childContent, null, false);
+					childType = parseType(registry, null, child.getName(), childContent, null, false, false);
 				}
 				if (childType instanceof SimpleType) {
 					structure.add(new SimpleElementImpl(child.getName(), (SimpleType<?>) childType, structure, new ValueImpl<Integer>(MinOccursProperty.getInstance(), required == null || !required.contains(child.getName()) ? 0 : 1)));
@@ -796,7 +826,7 @@ public class OpenApiParserv3 {
 	
 	@SuppressWarnings("rawtypes")
 	private Element<?> parseSchemaPart(SwaggerDefinitionImpl definition, String name, ComplexContent schema) throws ParseException {
-		Type parsedType = parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId(), name, schema, null, false);
+		Type parsedType = parseType((ModifiableTypeRegistry) definition.getRegistry(), definition.getId(), name, schema, null, false, true);
 		if (parsedType instanceof ComplexType) {
 			return new ComplexElementImpl(SwaggerParser.cleanup(name), (ComplexType) parsedType, null);
 		}
