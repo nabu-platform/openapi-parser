@@ -1,0 +1,44 @@
+{
+	"openapi": "3.0.0",
+	"info": {
+		"title": "Array allOf test",
+		"version": "1.0.0"
+	},
+	"paths": {},
+	"components": {
+		"schemas": {
+			"Common-openingHours": {
+				"type": "array",
+				"items": {
+					"type": "object",
+					"properties": {
+						"opens": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"Event-openingHours": {
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/Common-openingHours"
+					},
+					{
+						"items": {
+							"properties": {
+								"childcare": {
+									"type": "object",
+									"properties": {
+										"start": {
+											"type": "string"
+										}
+									}
+								}
+							}
+						}
+					}
+				]
+			}
+		}
+	}
+}

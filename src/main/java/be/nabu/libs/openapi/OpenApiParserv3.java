@@ -359,6 +359,12 @@ public class OpenApiParserv3 {
 							// we want to make sure A is not first set as supertype, then we cycle around again to do A again because B failed, but we assume because there _is_ a supertype (A) that we absorb A as well, leading to duplicate element definitions
 							if (structure.getSuperType() == null || structure.getSuperType().equals(superType)) {
 								structure.setSuperType(superType);
+								Integer inheritedMaxOccurs = ValueUtils.getValue(MaxOccursProperty.getInstance(), TypeUtils.getAllProperties(superType).toArray(new Value[0]));
+								if (inheritedMaxOccurs != null) {
+									values.add(new ValueImpl<Integer>(MaxOccursProperty.getInstance(), inheritedMaxOccurs));
+									Integer inheritedMinOccurs = ValueUtils.getValue(MinOccursProperty.getInstance(), TypeUtils.getAllProperties(superType).toArray(new Value[0]));
+									values.add(new ValueImpl<Integer>(MinOccursProperty.getInstance(), inheritedMinOccurs == null ? 0 : inheritedMinOccurs));
+								}
 							}
 							// other refs are expanded in it
 							else {
@@ -394,8 +400,12 @@ public class OpenApiParserv3 {
 							if (((MapContent) single).get("properties") != null) {
 								parseComplexType(structure, registry, (ComplexContent) ((MapContent) single).get("properties"), (List<String>) ((MapContent) single).get("required"));
 							}
+							else if (((MapContent) single).get("items") instanceof MapContent && ((MapContent) ((MapContent) single).get("items")).get("properties") != null) {
+								MapContent items = (MapContent) ((MapContent) single).get("items");
+								parseComplexType(structure, registry, (ComplexContent) items.get("properties"), (List<String>) items.get("required"));
+							}
 							else {
-								logger.warn("Could not find $ref or properties for allOf " + name);
+								logger.warn("Could not find $ref, properties or item properties for allOf " + name);
 							}
 						}
 					}

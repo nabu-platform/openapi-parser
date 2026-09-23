@@ -8,6 +8,7 @@ import be.nabu.libs.swagger.api.SwaggerDefinition;
 import be.nabu.libs.types.TypeUtils;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.properties.MaxOccursProperty;
 import be.nabu.libs.types.properties.MinOccursProperty;
 import junit.framework.TestCase;
 
@@ -26,6 +27,19 @@ public class TestParser extends TestCase {
 //		}
 //	}
 	
+	public void testArrayAllOfExtension() throws IOException {
+		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-array-allof.json")) {
+			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
+			ComplexType openingHours = definition.getRegistry().getComplexType("test.types", "eventOpeningHours");
+			assertNotNull(openingHours);
+			assertNotNull(openingHours.get("opens"));
+			assertNotNull(openingHours.get("childcare"));
+			assertNotNull(((ComplexType) openingHours.get("childcare").getType()).get("start"));
+			assertEquals(Integer.valueOf(0), ValueUtils.getValue(MaxOccursProperty.getInstance(), openingHours.getProperties()));
+
+		}
+	}
+
 	public void testAnyOfNullableVariants() throws IOException {
 		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-anyof-nullable.json")) {
 			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
