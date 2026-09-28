@@ -1,0 +1,42 @@
+{
+	"openapi": "3.0.0",
+	"info": {
+		"title": "Annotated reference allOf test",
+		"version": "1.0.0"
+	},
+	"paths": {},
+	"components": {
+		"schemas": {
+			"Common-string-time": {
+				"type": "string",
+				"pattern": "^[0-9]{1,2}:[0-9]{2}$"
+			},
+			"Event-openingHours-childcare": {
+				"type": "object",
+				"properties": {
+					"start": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Common-string-time"
+							},
+							{
+								"description": "The childcare start time.",
+								"example": "08:30"
+							}
+						]
+					},
+					"constrained": {
+						"allOf": [
+							{
+								"$ref": "#/components/schemas/Common-string-time"
+							},
+							{
+								"maxLength": 5
+							}
+						]
+					}
+				}
+			}
+		}
+	}
+}

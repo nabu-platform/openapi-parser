@@ -7,6 +7,37 @@
 	"paths": {},
 	"components": {
 		"schemas": {
+			"Event": {
+				"type": "object",
+				"properties": {
+					"faqs": {
+						"$ref": "#/components/schemas/Event-faqs"
+					}
+				}
+			},
+			"Event-faqs": {
+				"type": "array",
+				"maxItems": 30,
+				"items": {
+					"$ref": "#/components/schemas/Event-faq"
+				}
+			},
+			"Event-faq": {
+				"type": "object",
+				"properties": {
+					"nl": {
+						"type": "object",
+						"properties": {
+							"question": {
+								"type": "string"
+							},
+							"answer": {
+								"type": "string"
+							}
+						}
+					}
+				}
+			},
 			"Common-openingHours": {
 				"type": "array",
 				"items": {

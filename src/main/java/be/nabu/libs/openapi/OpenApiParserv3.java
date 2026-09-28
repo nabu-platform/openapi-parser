@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
@@ -243,6 +244,8 @@ public class OpenApiParserv3 {
 	@SuppressWarnings("rawtypes")
 	private Type parseType(ModifiableTypeRegistry registry, String baseId, String name, ComplexContent content, String referencePath, boolean defineOnly, boolean allowTypeLevelRequired) throws ParseException {
 		
+		content = normalizeAnnotatedReference(content);
+
 		if (content.get("$ref") != null) {
 			if (references.get((String) content.get("$ref")) == null) {
 				throw new ParseException("Can not resolve $ref " + content.get("$ref"), 1);
@@ -312,6 +315,9 @@ public class OpenApiParserv3 {
 		// if it is defined, check the registry if we already added it
 		if (referencePath != null) {
 			type = registry.getTypeById(typeId);
+			if (type == null) {
+				type = (Type) references.get(referencePath + "/" + name);
+			}
 		}
 		
 		boolean alreadyRegistered = type != null; 
@@ -442,34 +448,39 @@ public class OpenApiParserv3 {
 			// this extension does not need to be registered globally (in general)
 			// nabu allows for casting in parents to children, so at runtime you can create a parent instance and cast it to the child
 			// so this will work transparently...
-			if (parsedDefinedType instanceof Marshallable) {
-				type = new MarshallableSimpleTypeExtension(
-					referencePath == null && parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId, 
-					baseId, 
-					name, 
-					(SimpleType<?>) parsedDefinedType
-				);
-			}
-			else if (parsedDefinedType instanceof SimpleType) {
-				type = new SimpleTypeExtension(
-					referencePath == null && parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId, 
-					baseId, 
-					name, 
-					(SimpleType<?>) parsedDefinedType
-				);
-			}
-			else {
-				Structure structure = referencePath == null ? new Structure() : new DefinedStructure();
-				structure.setSuperType(parsedDefinedType);
-				structure.setName(cleanedUpName);
-				if (referencePath != null) {
-					structure.setNamespace(baseId);
-					((DefinedStructure) structure).setId(typeId);
+			if (type == null) {
+				if (parsedDefinedType instanceof Marshallable) {
+					type = new MarshallableSimpleTypeExtension(
+						referencePath == null && parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId,
+						baseId,
+						name,
+						(SimpleType<?>) parsedDefinedType
+					);
 				}
-//				else {
-//					((DefinedStructure).setId(parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId);
-//				}
-				type = structure;
+				else if (parsedDefinedType instanceof SimpleType) {
+					type = new SimpleTypeExtension(
+						referencePath == null && parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId,
+						baseId,
+						name,
+						(SimpleType<?>) parsedDefinedType
+					);
+				}
+				else {
+					Structure structure = referencePath == null ? new Structure() : new DefinedStructure();
+					structure.setSuperType(parsedDefinedType);
+					structure.setName(cleanedUpName);
+					if (referencePath != null) {
+						structure.setNamespace(baseId);
+						((DefinedStructure) structure).setId(typeId);
+					}
+//					else {
+//						((DefinedStructure).setId(parsedDefinedType instanceof DefinedType ? ((DefinedType) parsedDefinedType).getId() : typeId);
+//					}
+					type = structure;
+				}
+			}
+			else if (type instanceof Structure) {
+				((Structure) type).setSuperType(parsedDefinedType);
 			}
 			
 			Number maxOccurs = (Number) content.get("maxItems");
@@ -632,6 +643,31 @@ public class OpenApiParserv3 {
 		}
 		return type;
 	}
+	private ComplexContent normalizeAnnotatedReference(ComplexContent content) {
+		Object value = content.get("allOf");
+		if (!(value instanceof List) || ((List<?>) value).size() != 2) {
+			return content;
+		}
+		List<?> allOf = (List<?>) value;
+		if (!(allOf.get(0) instanceof MapContent) || !(allOf.get(1) instanceof MapContent)) {
+			return content;
+		}
+		MapContent reference = (MapContent) allOf.get(0);
+		MapContent annotations = (MapContent) allOf.get(1);
+		Map<String, Object> annotationValues = annotations.getContent();
+		if (reference.get("$ref") == null || annotationValues.isEmpty()) {
+			return content;
+		}
+		for (String key : annotationValues.keySet()) {
+			if (!"description".equals(key) && !"example".equals(key)) {
+				return content;
+			}
+		}
+		Map<String, Object> merged = new LinkedHashMap<String, Object>(reference.getContent());
+		merged.putAll(annotationValues);
+		return new MapContent(reference.getType(), merged);
+	}
+
 	private Type findType(String reference) throws ParseException {
 		Type type = null;
 		if (this.references.containsKey(reference)) {
@@ -655,6 +691,7 @@ public class OpenApiParserv3 {
 				if (childContent == null) {
 					continue;
 				}
+				childContent = normalizeAnnotatedReference(childContent);
 				String reference = (String) childContent.get("$ref");
 				Type childType;
 				if (reference != null) {
@@ -668,7 +705,7 @@ public class OpenApiParserv3 {
 				}
 				// if we have a complex type that extends "Object" and has no other properties, unwrap it
 				// ideally the parseDefinedType should probably be updated to parseElement or something so we don't need to extend types to transfer information...
-				else if (childType instanceof ComplexType && TypeUtils.getAllChildren((ComplexType) childType).isEmpty() && ((ComplexType) childType).getSuperType() instanceof BeanType && ((BeanType<?>) ((ComplexType) childType).getSuperType()).getBeanClass().equals(Object.class)) {
+				else if (childType instanceof ComplexType && ValueUtils.getValue(MaxOccursProperty.getInstance(), childType.getProperties()) == null && TypeUtils.getAllChildren((ComplexType) childType).isEmpty() && ((ComplexType) childType).getSuperType() instanceof BeanType && ((BeanType<?>) ((ComplexType) childType).getSuperType()).getBeanClass().equals(Object.class)) {
 					ComplexElementImpl element = new ComplexElementImpl(child.getName(), (ComplexType) childType.getSuperType(), structure, new ValueImpl<Integer>(MinOccursProperty.getInstance(), required == null || !required.contains(child.getName()) ? 0 : 1));
 					// inherit properties like maxOccurs
 					Integer maxOccurs = ValueUtils.getValue(MaxOccursProperty.getInstance(), childType.getProperties());

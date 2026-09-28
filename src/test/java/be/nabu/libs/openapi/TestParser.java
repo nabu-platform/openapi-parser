@@ -8,6 +8,7 @@ import be.nabu.libs.swagger.api.SwaggerDefinition;
 import be.nabu.libs.types.TypeUtils;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.api.SimpleType;
 import be.nabu.libs.types.properties.MaxOccursProperty;
 import be.nabu.libs.types.properties.MinOccursProperty;
 import junit.framework.TestCase;
@@ -37,6 +38,34 @@ public class TestParser extends TestCase {
 			assertNotNull(((ComplexType) openingHours.get("childcare").getType()).get("start"));
 			assertEquals(Integer.valueOf(0), ValueUtils.getValue(MaxOccursProperty.getInstance(), openingHours.getProperties()));
 
+			ComplexType event = definition.getRegistry().getComplexType("test.types", "event");
+			assertNotNull(event);
+			Element<?> faqs = event.get("faqs");
+			assertNotNull(faqs);
+			assertTrue(faqs.getType() instanceof ComplexType);
+			ComplexType faq = definition.getRegistry().getComplexType("test.types", "eventFaq");
+			assertNotNull(faq);
+			assertSame(faq, faqs.getType().getSuperType());
+			assertNotNull(((ComplexType) faqs.getType()).get("nl"));
+			assertNotNull(((ComplexType) ((ComplexType) faqs.getType()).get("nl").getType()).get("question"));
+			assertNotNull(((ComplexType) ((ComplexType) faqs.getType()).get("nl").getType()).get("answer"));
+			assertEquals(Integer.valueOf(30), ValueUtils.getValue(MaxOccursProperty.getInstance(), faqs.getType().getProperties()));
+		}
+	}
+
+	public void testAnnotatedReferenceAllOf() throws IOException {
+		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-annotated-reference-allof.json")) {
+			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
+			ComplexType childcare = definition.getRegistry().getComplexType("test.types", "eventOpeningHoursChildcare");
+			assertNotNull(childcare);
+			Element<?> start = childcare.get("start");
+			assertNotNull(start);
+			assertTrue(start.getType() instanceof SimpleType);
+			assertEquals(String.class, ((SimpleType<?>) start.getType()).getInstanceClass());
+
+			Element<?> constrained = childcare.get("constrained");
+			assertNotNull(constrained);
+			assertTrue(constrained.getType() instanceof ComplexType);
 		}
 	}
 
