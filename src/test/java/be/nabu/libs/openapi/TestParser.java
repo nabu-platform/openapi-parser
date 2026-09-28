@@ -2,6 +2,7 @@ package be.nabu.libs.openapi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 
 import be.nabu.libs.property.ValueUtils;
 import be.nabu.libs.swagger.api.SwaggerDefinition;
@@ -67,6 +68,76 @@ public class TestParser extends TestCase {
 			assertNotNull(constrained);
 			assertTrue(constrained.getType() instanceof ComplexType);
 		}
+	}
+
+	public void testCompositionVariants() throws IOException {
+		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-composition-variants.json")) {
+			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
+
+			ComplexType propertiesOnly = getComplexType(definition, "propertiesOnly");
+			assertNotNull(propertiesOnly.get("own"));
+			assertEquals(Integer.valueOf(1), ValueUtils.getValue(MinOccursProperty.getInstance(), propertiesOnly.get("own").getProperties()));
+
+			ComplexType allOfReference = getComplexType(definition, "allOfReference");
+			assertSame(getComplexType(definition, "base"), allOfReference.getSuperType());
+			assertNotNull(allOfReference.get("base"));
+
+			assertChildren(getComplexType(definition, "allOfInline"), "first", "second");
+			ComplexType allOfReferenceInline = getComplexType(definition, "allOfReferenceInline");
+			assertSame(getComplexType(definition, "base"), allOfReferenceInline.getSuperType());
+			assertChildren(allOfReferenceInline, "base", "shared", "extension");
+			assertEquals(BigInteger.class, ((SimpleType<?>) allOfReferenceInline.get("shared").getType()).getInstanceClass());
+
+			ComplexType anyOfReferences = getComplexType(definition, "anyOfReferences");
+			assertSame(getComplexType(definition, "base"), anyOfReferences.getSuperType());
+			assertChildren(anyOfReferences, "base", "shared", "other");
+			assertChildren(getComplexType(definition, "anyOfInline"), "firstOption", "secondOption");
+
+			ComplexType oneOfReferences = getComplexType(definition, "oneOfReferences");
+			assertSame(getComplexType(definition, "base"), oneOfReferences.getSuperType());
+			assertChildren(oneOfReferences, "base", "shared", "other");
+			assertChildren(getComplexType(definition, "oneOfInline"), "firstChoice", "secondChoice");
+
+			ComplexType container = getComplexType(definition, "container");
+			Element<?> arrayReference = container.get("arrayReference");
+			assertEquals(Integer.valueOf(3), ValueUtils.getValue(MaxOccursProperty.getInstance(), arrayReference.getType().getProperties()));
+			assertEquals(Integer.valueOf(1), ValueUtils.getValue(MinOccursProperty.getInstance(), arrayReference.getType().getProperties()));
+			assertChildren((ComplexType) arrayReference.getType(), "base", "shared");
+			Element<?> arrayInline = container.get("arrayInline");
+			assertEquals(Integer.valueOf(0), ValueUtils.getValue(MaxOccursProperty.getInstance(), arrayInline.getType().getProperties()));
+			assertChildren((ComplexType) arrayInline.getType(), "item");
+		}
+	}
+
+	public void testCompositionCurrentlySkipsSiblingProperties() throws IOException {
+		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-composition-variants.json")) {
+			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
+			ComplexType siblingPropertiesAnyOf = getComplexType(definition, "siblingPropertiesAnyOfRequired");
+			assertTrue(TypeUtils.getAllChildren(siblingPropertiesAnyOf).isEmpty());
+
+			ComplexType siblingPropertiesAllOf = getComplexType(definition, "siblingPropertiesAllOf");
+			assertSame(getComplexType(definition, "base"), siblingPropertiesAllOf.getSuperType());
+			assertChildren(siblingPropertiesAllOf, "base", "shared");
+			assertNull(siblingPropertiesAllOf.get("own"));
+
+			ComplexType siblingPropertiesOneOf = getComplexType(definition, "siblingPropertiesOneOf");
+			assertSame(getComplexType(definition, "base"), siblingPropertiesOneOf.getSuperType());
+			assertChildren(siblingPropertiesOneOf, "base", "shared", "other");
+			assertNull(siblingPropertiesOneOf.get("own"));
+		}
+	}
+
+	private ComplexType getComplexType(SwaggerDefinition definition, String name) {
+		ComplexType type = definition.getRegistry().getComplexType("test.types", name);
+		assertNotNull(name, type);
+		return type;
+	}
+
+	private void assertChildren(ComplexType type, String... names) {
+		for (String name : names) {
+			assertNotNull(type.getName() + " should contain " + name, type.get(name));
+		}
+		assertEquals(type.getName() + " child count", names.length, TypeUtils.getAllChildren(type).size());
 	}
 
 	public void testAnyOfNullableVariants() throws IOException {

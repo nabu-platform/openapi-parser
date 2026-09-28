@@ -1,0 +1,222 @@
+{
+	"openapi": "3.0.0",
+	"info": {
+		"title": "Composition variants",
+		"version": "1.0.0"
+	},
+	"paths": {},
+	"components": {
+		"schemas": {
+			"Base": {
+				"type": "object",
+				"properties": {
+					"base": {
+						"type": "string"
+					},
+					"shared": {
+						"type": "string"
+					}
+				}
+			},
+			"Other": {
+				"type": "object",
+				"properties": {
+					"other": {
+						"type": "integer"
+					}
+				}
+			},
+			"PropertiesOnly": {
+				"type": "object",
+				"properties": {
+					"own": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"own"
+				]
+			},
+			"AllOfReference": {
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					}
+				]
+			},
+			"AllOfInline": {
+				"allOf": [
+					{
+						"properties": {
+							"first": {
+								"type": "string"
+							}
+						}
+					},
+					{
+						"properties": {
+							"second": {
+								"type": "boolean"
+							}
+						}
+					}
+				]
+			},
+			"AllOfReferenceInline": {
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					},
+					{
+						"properties": {
+							"extension": {
+								"type": "boolean"
+							},
+							"shared": {
+								"type": "integer"
+							}
+						}
+					}
+				]
+			},
+			"AnyOfReferences": {
+				"anyOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					},
+					{
+						"$ref": "#/components/schemas/Other"
+					}
+				]
+			},
+			"AnyOfInline": {
+				"anyOf": [
+					{
+						"properties": {
+							"firstOption": {
+								"type": "string"
+							}
+						}
+					},
+					{
+						"properties": {
+							"secondOption": {
+								"type": "string"
+							}
+						}
+					}
+				]
+			},
+			"OneOfReferences": {
+				"oneOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					},
+					{
+						"$ref": "#/components/schemas/Other"
+					}
+				]
+			},
+			"OneOfInline": {
+				"oneOf": [
+					{
+						"properties": {
+							"firstChoice": {
+								"type": "string"
+							}
+						}
+					},
+					{
+						"properties": {
+							"secondChoice": {
+								"type": "string"
+							}
+						}
+					}
+				]
+			},
+			"ArrayReference": {
+				"type": "array",
+				"minItems": 1,
+				"maxItems": 3,
+				"items": {
+					"$ref": "#/components/schemas/Base"
+				}
+			},
+			"ArrayInline": {
+				"type": "array",
+				"items": {
+					"type": "object",
+					"properties": {
+						"item": {
+							"type": "string"
+						}
+					}
+				}
+			},
+			"SiblingPropertiesAnyOfRequired": {
+				"type": "object",
+				"properties": {
+					"nl": {
+						"type": "string"
+					},
+					"en": {
+						"type": "string"
+					}
+				},
+				"anyOf": [
+					{
+						"required": [
+							"nl"
+						]
+					},
+					{
+						"required": [
+							"en"
+						]
+					}
+				]
+			},
+			"SiblingPropertiesAllOf": {
+				"type": "object",
+				"properties": {
+					"own": {
+						"type": "boolean"
+					}
+				},
+				"allOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					}
+				]
+			},
+			"SiblingPropertiesOneOf": {
+				"type": "object",
+				"properties": {
+					"own": {
+						"type": "boolean"
+					}
+				},
+				"oneOf": [
+					{
+						"$ref": "#/components/schemas/Base"
+					},
+					{
+						"$ref": "#/components/schemas/Other"
+					}
+				]
+			},
+			"Container": {
+				"type": "object",
+				"properties": {
+					"arrayReference": {
+						"$ref": "#/components/schemas/ArrayReference"
+					},
+					"arrayInline": {
+						"$ref": "#/components/schemas/ArrayInline"
+					}
+				}
+			}
+		}
+	}
+}
