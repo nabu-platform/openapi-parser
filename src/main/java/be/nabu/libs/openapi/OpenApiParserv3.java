@@ -344,6 +344,10 @@ public class OpenApiParserv3 {
 			// in the define only phase, we want to allow references to be created without actually having parsed it yet (definitions can be out-of-order from a parsing perspective)
 			if (!defineOnly) {
 				Structure structure = (Structure) type;
+				MapContent properties = (MapContent) content.get("properties");
+				if (properties != null) {
+					parseComplexType(structure, registry, properties, (List<String>) content.get("required"));
+				}
 				if (content.get("allOf") != null || content.get("oneOf") != null || content.get("anyOf") != null) {
 					List<Object> allOf = (List<Object>) content.get("allOf");
 					if (allOf == null) {
@@ -414,12 +418,6 @@ public class OpenApiParserv3 {
 								logger.warn("Could not find $ref, properties or item properties for allOf " + name);
 							}
 						}
-					}
-				}
-				else {
-					MapContent properties = (MapContent) content.get("properties");
-					if (properties != null) {
-						parseComplexType(structure, registry, properties, (List<String>) ((MapContent) content).get("required"));
 					}
 				}
 				// if the structure has no fields, make it a generic object instead (unless it is a root, because then it is referred to by other types and must be resolvable)

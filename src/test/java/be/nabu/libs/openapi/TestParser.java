@@ -109,21 +109,18 @@ public class TestParser extends TestCase {
 		}
 	}
 
-	public void testCompositionCurrentlySkipsSiblingProperties() throws IOException {
+	public void testCompositionIncludesSiblingProperties() throws IOException {
 		try (InputStream input = Thread.currentThread().getContextClassLoader().getResourceAsStream("test-composition-variants.json")) {
 			SwaggerDefinition definition = new OpenApiParserv3().parse("test", input);
-			ComplexType siblingPropertiesAnyOf = getComplexType(definition, "siblingPropertiesAnyOfRequired");
-			assertTrue(TypeUtils.getAllChildren(siblingPropertiesAnyOf).isEmpty());
+			assertChildren(getComplexType(definition, "siblingPropertiesAnyOfRequired"), "nl", "en");
 
 			ComplexType siblingPropertiesAllOf = getComplexType(definition, "siblingPropertiesAllOf");
 			assertSame(getComplexType(definition, "base"), siblingPropertiesAllOf.getSuperType());
-			assertChildren(siblingPropertiesAllOf, "base", "shared");
-			assertNull(siblingPropertiesAllOf.get("own"));
+			assertChildren(siblingPropertiesAllOf, "base", "shared", "own");
 
 			ComplexType siblingPropertiesOneOf = getComplexType(definition, "siblingPropertiesOneOf");
 			assertSame(getComplexType(definition, "base"), siblingPropertiesOneOf.getSuperType());
-			assertChildren(siblingPropertiesOneOf, "base", "shared", "other");
-			assertNull(siblingPropertiesOneOf.get("own"));
+			assertChildren(siblingPropertiesOneOf, "base", "shared", "other", "own");
 		}
 	}
 
