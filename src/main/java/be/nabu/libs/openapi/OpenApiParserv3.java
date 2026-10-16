@@ -657,7 +657,7 @@ public class OpenApiParserv3 {
 			return content;
 		}
 		for (String key : annotationValues.keySet()) {
-			if (!"description".equals(key) && !"example".equals(key)) {
+			if (!"description".equals(key) && !"example".equals(key) && !"readOnly".equals(key)) {
 				return content;
 			}
 		}

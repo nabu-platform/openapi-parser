@@ -21,7 +21,8 @@
 							},
 							{
 								"description": "The childcare start time.",
-								"example": "08:30"
+								"example": "08:30",
+								"readOnly": true
 							}
 						]
 					},
